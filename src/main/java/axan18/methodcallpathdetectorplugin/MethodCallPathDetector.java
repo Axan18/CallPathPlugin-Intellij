@@ -17,46 +17,34 @@ import com.intellij.psi.util.PsiTreeUtil;
 import java.util.*;
 
 public class MethodCallPathDetector extends AnAction {
-    private PsiMethod start; // field for easier testing
 
     @Override
     public void actionPerformed(AnActionEvent event) {
         PsiElement element = event.getData(CommonDataKeys.PSI_ELEMENT);
-        if (!(element instanceof PsiMethod method)) // ensure the selected element is a method
+        if (!(element instanceof PsiMethod start)) // ensure the selected element is a method
             return;
-        if (method.getBody() == null || method.getBody().getStatements().length == 0) {
+        if (isMethodEmpty(start)) { // stop if empty to avoid unnecessary processing
             Messages.showMessageDialog("Method is empty", "Error", Messages.getErrorIcon());
             return;
         }
-        start = method;
         Project project = event.getProject();
-        String searchedMethodName = Messages.showInputDialog(
-                project,
-                "Method to find call path to",
-                "Provide Name of the Method That You Want to Find Call Path To",
-                Messages.getQuestionIcon()
-        );
-        if (searchedMethodName == null || searchedMethodName.trim().isEmpty()) {
+        assert project != null;
+
+        String searchedMethodName = getUserInput(project);
+        if (notProvided(searchedMethodName)) {
             Messages.showMessageDialog("Method name not provided", "Warning", Messages.getWarningIcon());
             return;
         }
-        assert project != null;
-        List<PsiMethod> targets = ProgressManager.getInstance().runProcess(
-                () -> ReadAction.compute(() -> Arrays.asList(
-                        PsiShortNamesCache.getInstance(project)
-                                .getMethodsByName(searchedMethodName, GlobalSearchScope.allScope(project))
-                )),
-                new EmptyProgressIndicator()
-        );
+        List<PsiMethod> targets = getTargetMethods(project, searchedMethodName); // get all methods with the given name
         if (targets.isEmpty()) {
             Messages.showMessageDialog("Method " + searchedMethodName + " not found", "Error", Messages.getErrorIcon());
             return;
         }
 
         Set<PsiMethod> visited = new HashSet<>();
-        for (PsiMethod target : targets) {
+        for (PsiMethod target : targets) { // for each existing method with given name...
             List<List<String>> allPaths = ProgressManager.getInstance().runProcess(
-                    () -> ReadAction.compute(() -> findCallPaths(target, new ArrayList<>(), visited)),
+                    () -> ReadAction.compute(() -> new PathFinder(start).findCallPaths(target, new ArrayList<>(), visited)),
                     new EmptyProgressIndicator());
 
             // Displaying all paths
@@ -71,71 +59,31 @@ public class MethodCallPathDetector extends AnAction {
             visited.clear();
         }
     }
-    List<List<String>> findCallPaths(PsiMethod callingMethod, List<String> path, Set<PsiMethod> visited) {
-        List<List<String>> allPaths = new ArrayList<>();
-        if (callingMethod == null || visited.contains(callingMethod)) {
-            return allPaths;  // return empty if method is null or already visited
-        }
-        visited.add(callingMethod);
-        path.add(callingMethod.getName());
 
-        if (callingMethod.equals(start)) {
-            List<String> fullPath = new ArrayList<>(path);
-            fullPath.remove(0);  // remove the target method from the path
-            Collections.reverse(fullPath);  // reverse the path to show start to target
-            allPaths.add(fullPath);
-        } else {
-            // looking for references to the callers of the calling method
-            Collection<PsiReference> references = ReferencesSearch.search(callingMethod).findAll();
-            for (PsiReference reference : references) {
-                PsiElement element = reference.getElement();
-                if (isInsideThreadOrExecutor(element)) {
-                    return allPaths; // if the method is inside a new thread, skip it
-                }
-                PsiMethod caller = PsiTreeUtil.getParentOfType(element, PsiMethod.class);
-                if (caller != null && !visited.contains(caller)) {
-                    List<List<String>> pathsFromCaller = findCallPaths(caller, new ArrayList<>(path), new HashSet<>(visited));
-                    allPaths.addAll(pathsFromCaller);  // add the paths from this caller
-                }
-            }
-        }
-        return allPaths;
-    }
-    public void setStart(PsiMethod start) {
-        this.start = start;
+    private static boolean notProvided(String searchedMethodName) {
+        return searchedMethodName == null || searchedMethodName.trim().isEmpty();
     }
 
-    private boolean isInsideThreadOrExecutor(PsiElement element) {
-        PsiElement parent = element;
-        while (parent != null) {
-            if (parent instanceof PsiNewExpression newExpr) {
-                PsiJavaCodeReferenceElement ref = newExpr.getClassReference();
-                if (ref != null && "java.lang.Thread".equals(ref.getQualifiedName())) {
-                    return true;
-                }
-                if (isExecutorService(ref.getQualifiedName())) {
-                    return true;
-                }
-            }
-            if (parent instanceof PsiMethodCallExpression methodCall) {
-                String methodName = methodCall.getMethodExpression().getReferenceName();
-                if (isExecutorServiceMethod(methodName)) {
-                    return true;
-                }
-            }
-            parent = parent.getParent();
-        }
-        return false;
+    private static List<PsiMethod> getTargetMethods(Project project, String searchedMethodName) {
+        return ProgressManager.getInstance().runProcess(
+                () -> ReadAction.compute(() -> Arrays.asList(
+                        PsiShortNamesCache.getInstance(project)
+                                .getMethodsByName(searchedMethodName, GlobalSearchScope.allScope(project))
+                )),
+                new EmptyProgressIndicator()
+        );
     }
 
-    private boolean isExecutorService(String className) {
-        return "java.util.concurrent.ExecutorService".equals(className) ||
-                "java.util.concurrent.Executors".equals(className);
+    private static boolean isMethodEmpty(PsiMethod start) {
+        return start.getBody() == null || start.getBody().getStatements().length == 0;
     }
 
-    private boolean isExecutorServiceMethod(String methodName) {
-        return "execute".equals(methodName) || "submit".equals(methodName) ||
-                "invokeAll".equals(methodName) || "invokeAny".equals(methodName);
+    private String getUserInput(Project project) {
+        return Messages.showInputDialog(
+                project,
+                "Method to find call path to",
+                "Provide Name of the Method That You Want to Find Call Path To",
+                Messages.getQuestionIcon()
+        );
     }
-
 }

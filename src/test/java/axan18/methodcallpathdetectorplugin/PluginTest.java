@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
 
-    private final MethodCallPathDetector detector = new MethodCallPathDetector();
+    private final PathFinder pathFinder = new PathFinder();
     @Override
     protected String getTestDataPath() {
         return "src/test/testData";
@@ -42,7 +42,7 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
         PsiFile file = getFixture().configureByText("XYZ.java", classCode);
         PsiMethod start = findMethodByName(file.getProject(), "foo");
         PsiMethod target = findMethodByName(file.getProject(), "interestingMethod");
-        detector.setStart(start);
+        pathFinder.setStart(start);
         List<List<String>> paths = getPath(target);
         assertEquals(1, paths.size());
         assertTrue(List.of("foo", "bar", "baz").containsAll(paths.get(0)));
@@ -60,7 +60,7 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
         PsiFile file = getFixture().configureByText("XYZ.java", classCode);
         PsiMethod start = findMethodByName(file.getProject(), "foo");
         PsiMethod target = findMethodByName(file.getProject(), "interestingMethod");
-        detector.setStart(start);
+        pathFinder.setStart(start);
         List<List<String>> paths = getPath(target);
         assertEquals(0, paths.size());
     }
@@ -76,7 +76,7 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
         PsiFile file = getFixture().configureByText("XYZ.java", classCode);
         PsiMethod start = findMethodByName(file.getProject(), "foo");
         PsiMethod target = findMethodByName(file.getProject(), "interestingMethod");
-        detector.setStart(start);
+        pathFinder.setStart(start);
         List<List<String>> paths = getPath(target);
         assertEquals(1, paths.size());
         assertTrue(List.of("foo", "bar", "baz").containsAll(paths.get(0)));
@@ -93,7 +93,7 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
         PsiFile file = getFixture().configureByText("XYZ.java", classCode);
         PsiMethod start = findMethodByName(file.getProject(), "foo");
         PsiMethod target = findMethodByName(file.getProject(), "interestingMethod");
-        detector.setStart(start);
+        pathFinder.setStart(start);
         List<List<String>> paths = getPath(target);
         assertEquals(1, paths.size());
         assertTrue(List.of("foo", "bar", "baz").containsAll(paths.get(0)));
@@ -110,7 +110,7 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
         PsiFile file = getFixture().configureByText("XYZ.java", classCode);
         PsiMethod start = findMethodByName(file.getProject(), "foo");
         PsiMethod target = findMethodByName(file.getProject(), "interestingMethod");
-        detector.setStart(start);
+        pathFinder.setStart(start);
         List<List<String>> paths = getPath(target);
         assertEquals(2, paths.size());
         assertTrue(paths.stream().anyMatch(path -> path.containsAll(List.of("foo", "bar", "baz"))));
@@ -130,7 +130,7 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
         PsiFile file = getFixture().configureByText("XYZ.java", classCode);
         PsiMethod start = findMethodByName(file.getProject(), "foo");
         PsiMethod target = findMethodByName(file.getProject(), "interestingMethod");
-        detector.setStart(start);
+        pathFinder.setStart(start);
         List<List<String>> paths = getPath(target);
         assertEquals(2, paths.size());
         assertTrue(paths.stream().anyMatch(path -> path.containsAll(List.of("foo", "bar", "baz"))));
@@ -157,7 +157,7 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
         Project project = getFixture().getProject();
         PsiMethod start = findMethodByName(project, "foo");
         PsiMethod target = findMethodByName(project, "interestingMethod");
-        detector.setStart(start);
+        pathFinder.setStart(start);
         List<List<String>> paths = getPath(target);
         assertEquals(1, paths.size());
         List<String> expectedPath = List.of("foo", "bar", "baz");
@@ -203,7 +203,7 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
         Project project = getFixture().getProject();
         PsiMethod start = findMethodByName(project, "foo");
         PsiMethod target = findMethodByName(project, "makeSound");
-        detector.setStart(start);
+        pathFinder.setStart(start);
         List<List<String>> paths = getPath(target);
         assertEquals(1, paths.size());
         List<String> expectedPath = List.of("foo");
@@ -223,7 +223,7 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
         PsiFile file = getFixture().configureByText("XYZ.java", classCode);
         PsiMethod start = findMethodByName(file.getProject(), "foo");
         PsiMethod target = findMethodByName(file.getProject(), "interestingMethod");
-        detector.setStart(start);
+        pathFinder.setStart(start);
         List<List<String>> paths = getPath(target);
         assertEquals(0, paths.size());
     }
@@ -244,7 +244,7 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
         PsiFile file = getFixture().configureByText("XYZ.java", classCode);
         PsiMethod start = findMethodByName(file.getProject(), "bar");
         PsiMethod target = findMethodByName(file.getProject(), "interestingMethod");
-        detector.setStart(start);
+        pathFinder.setStart(start);
         List<List<String>> paths = getPath(target);
         assertEquals(1, paths.size());
         List<String> expectedPath = List.of("bar");
@@ -266,7 +266,7 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
         PsiFile file = getFixture().configureByText("XYZ.java", classCode);
         PsiMethod start = findMethodByName(file.getProject(), "foo");
         PsiMethod target = findMethodByName(file.getProject(), "interestingMethod");
-        detector.setStart(start);
+        pathFinder.setStart(start);
         List<List<String>> paths = getPath(target);
         assertEquals(1, paths.size());
         List<String> expectedPath = List.of("foo");
@@ -290,7 +290,7 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
         PsiFile file = getFixture().configureByText("XYZ.java", classCode);
         PsiMethod start = findMethodByName(file.getProject(), "outerMethod");
         PsiMethod target = findMethodByName(file.getProject(), "interestingMethod");
-        detector.setStart(start);
+        pathFinder.setStart(start);
         List<List<String>> paths = getPath(target);
         assertEquals(1, paths.size());
         List<String> expectedPath = List.of("outerMethod", "innerMethod");
@@ -315,7 +315,7 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
         PsiFile file = getFixture().configureByText("XYZ.java", classCode);
         PsiMethod start = findMethodByName(file.getProject(), "foo");
         PsiMethod target = findMethodByName(file.getProject(), "interestingMethod");
-        detector.setStart(start);
+        pathFinder.setStart(start);
         List<List<String>> paths = getPath(target);
         assertEquals(0, paths.size());
     }
@@ -323,7 +323,7 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
     private List<List<String>> getPath(PsiMethod target) {
         return ProgressManager.getInstance().runProcess(
                 () -> ReadAction.compute(() ->
-                        detector.findCallPaths(target, new ArrayList<>(), new HashSet<>())),
+                        pathFinder.findCallPaths(target, new ArrayList<>(), new HashSet<>())),
                 new EmptyProgressIndicator());
     }
 
