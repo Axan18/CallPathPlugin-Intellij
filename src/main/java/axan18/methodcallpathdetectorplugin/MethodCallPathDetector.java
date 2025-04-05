@@ -1,5 +1,6 @@
 package axan18.methodcallpathdetectorplugin;
 
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -12,10 +13,24 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.PsiShortNamesCache;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 
 public class MethodCallPathDetector extends AnAction {
+    @Override
+    public @NotNull ActionUpdateThread getActionUpdateThread() {
+
+        return ActionUpdateThread.BGT; // run on background thread
+    }
+
+    @Override
+    public void update(AnActionEvent e) { // check if the selected element is a method
+        PsiElement element = e.getData(CommonDataKeys.PSI_ELEMENT);
+        boolean isMethod = element instanceof PsiMethod;
+        e.getPresentation().setEnabledAndVisible(isMethod);
+    }
+
 
     @Override
     public void actionPerformed(AnActionEvent event) {
