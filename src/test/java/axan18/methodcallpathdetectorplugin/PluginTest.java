@@ -6,54 +6,28 @@ import com.intellij.openapi.progress.EmptyProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Computable;
-import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.PsiShortNamesCache;
-import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.testFramework.fixtures.LightJavaCodeInsightFixtureTestCase5;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
 
-    private MethodCallPathDetector detector = new MethodCallPathDetector();
+    private final MethodCallPathDetector detector = new MethodCallPathDetector();
     @Override
     protected String getTestDataPath() {
         return "src/test/testData";
-    }
-
-
-    @Test
-    void testMethodExtraction() {
-        PsiFile file = getFixture().configureByText("XYZ.java", """
-        class XYZ{
-            void foo() { bar(); }
-            void bar() { baz(); }
-            void baz() { interestingMethod(); }
-            void interestingMethod(){ return; }
-        }""");
-
-        PsiClass psiClass = readActionWrapper(() -> PsiTreeUtil.getChildOfType(file, PsiClass.class));
-
-        PsiMethod[] methods = readActionWrapper(() -> psiClass != null ? psiClass.getMethods() : new PsiMethod[0]);
-
-        assertNotNull(methods);
-        assertEquals(4, methods.length);
-
-        // Verify method names
-        Set<String> expectedNames = Set.of("foo", "bar", "baz", "interestingMethod");
-        Set<String> actualNames = readActionWrapper(() -> Arrays.stream(methods)
-                .map(PsiMethod::getName)
-                .collect(Collectors.toSet()));
-
-        assertTrue(expectedNames.containsAll(actualNames));
     }
 
     @Test
@@ -73,6 +47,7 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
         assertEquals(1, paths.size());
         assertTrue(List.of("foo", "bar", "baz").containsAll(paths.get(0)));
     }
+
     @Test
     void testNoPath(){
         String classCode = """
@@ -177,8 +152,8 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
             void baz() { interestingMethod(); }
             void interestingMethod(){ return; }
         }""";
-        PsiFile fileA = getFixture().configureByText("A.java", classCodeA);
-        PsiFile fileB = getFixture().configureByText("B.java", classCodeB);
+        getFixture().configureByText("A.java", classCodeA);
+        getFixture().configureByText("B.java", classCodeB);
         Project project = getFixture().getProject();
         PsiMethod start = findMethodByName(project, "foo");
         PsiMethod target = findMethodByName(project, "interestingMethod");
@@ -235,7 +210,7 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
         assertTrue(paths.get(0).containsAll(expectedPath) && expectedPath.containsAll(paths.get(0)));
     }
     @Test
-    void testThreadCall(){
+    void testThreadCall1(){
         String classCode = """
         class XYZ{
             void foo() {
@@ -252,8 +227,98 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
         List<List<String>> paths = getPath(target);
         assertEquals(0, paths.size());
     }
+    @Test
+    void testThreadCall2(){ // not a problem as we don't go to other thread
+        String classCode = """
+        class XYZ{
+            void foo() {
+                new Thread(() -> {
+                    bar();
+                }).start();
+            }
+            void bar() {
+                interestingMethod();
+            }
+            void interestingMethod(){ return; }
+        }""";
+        PsiFile file = getFixture().configureByText("XYZ.java", classCode);
+        PsiMethod start = findMethodByName(file.getProject(), "bar");
+        PsiMethod target = findMethodByName(file.getProject(), "interestingMethod");
+        detector.setStart(start);
+        List<List<String>> paths = getPath(target);
+        assertEquals(1, paths.size());
+        List<String> expectedPath = List.of("bar");
+        assertTrue(paths.get(0).containsAll(expectedPath) && expectedPath.containsAll(paths.get(0)));
+    }
 
-    //TODO: tests for: threads, lambdas, anonymous classes, inner classes, static methods, etc.
+    @Test
+    void testLambdas(){
+        String classCode = """
+        class XYZ{
+            void foo() {
+                Runnable r = () -> {
+                    interestingMethod();
+                };
+                r.run();
+            }
+            void interestingMethod(){ return; }
+        }""";
+        PsiFile file = getFixture().configureByText("XYZ.java", classCode);
+        PsiMethod start = findMethodByName(file.getProject(), "foo");
+        PsiMethod target = findMethodByName(file.getProject(), "interestingMethod");
+        detector.setStart(start);
+        List<List<String>> paths = getPath(target);
+        assertEquals(1, paths.size());
+        List<String> expectedPath = List.of("foo");
+        assertTrue(paths.get(0).containsAll(expectedPath) && expectedPath.containsAll(paths.get(0)));
+    }
+    @Test
+    void testInnerClass(){
+        String classCode = """
+        class XYZ {
+            class Inner {
+                void innerMethod() {
+                    interestingMethod();
+                }
+            }
+            void outerMethod() {
+                Inner inner = new Inner();
+                inner.innerMethod();
+            }
+            void interestingMethod(){ return; }
+        }""";
+        PsiFile file = getFixture().configureByText("XYZ.java", classCode);
+        PsiMethod start = findMethodByName(file.getProject(), "outerMethod");
+        PsiMethod target = findMethodByName(file.getProject(), "interestingMethod");
+        detector.setStart(start);
+        List<List<String>> paths = getPath(target);
+        assertEquals(1, paths.size());
+        List<String> expectedPath = List.of("outerMethod", "innerMethod");
+        assertTrue(paths.get(0).containsAll(expectedPath) && expectedPath.containsAll(paths.get(0)));
+    }
+    @Test
+    void testExecutorService(){
+        String classCode = """
+        import java.util.concurrent.ExecutorService;
+        import java.util.concurrent.Executors;
+
+        class XYZ {
+            void foo() {
+                ExecutorService executor = Executors.newSingleThreadExecutor();
+                executor.execute(() -> {
+                    interestingMethod();
+                });
+                executor.shutdown();
+            }
+            void interestingMethod(){ return; }
+        }""";
+        PsiFile file = getFixture().configureByText("XYZ.java", classCode);
+        PsiMethod start = findMethodByName(file.getProject(), "foo");
+        PsiMethod target = findMethodByName(file.getProject(), "interestingMethod");
+        detector.setStart(start);
+        List<List<String>> paths = getPath(target);
+        assertEquals(0, paths.size());
+    }
 
     private List<List<String>> getPath(PsiMethod target) {
         return ProgressManager.getInstance().runProcess(

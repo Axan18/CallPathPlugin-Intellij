@@ -13,19 +13,18 @@ import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.PsiShortNamesCache;
 import com.intellij.psi.search.searches.ReferencesSearch;
 import com.intellij.psi.util.PsiTreeUtil;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
 public class MethodCallPathDetector extends AnAction {
-    private PsiMethod start;
+    private PsiMethod start; // field for easier testing
 
     @Override
     public void actionPerformed(AnActionEvent event) {
         PsiElement element = event.getData(CommonDataKeys.PSI_ELEMENT);
         if (!(element instanceof PsiMethod method)) // ensure the selected element is a method
             return;
-        if (method.getBody() == null) {
+        if (method.getBody() == null || method.getBody().getStatements().length == 0) {
             Messages.showMessageDialog("Method is empty", "Error", Messages.getErrorIcon());
             return;
         }
@@ -56,12 +55,6 @@ public class MethodCallPathDetector extends AnAction {
 
         Set<PsiMethod> visited = new HashSet<>();
         for (PsiMethod target : targets) {
-            if (target.getBody() == null) {
-                Messages.showMessageDialog(
-                        "Method " + searchedMethodName + " is not called from " + start.getName() + " method",
-                        "Error", Messages.getErrorIcon());
-                return;
-            }
             List<List<String>> allPaths = ProgressManager.getInstance().runProcess(
                     () -> ReadAction.compute(() -> findCallPaths(target, new ArrayList<>(), visited)),
                     new EmptyProgressIndicator());
@@ -87,7 +80,7 @@ public class MethodCallPathDetector extends AnAction {
         path.add(callingMethod.getName());
 
         if (callingMethod.equals(start)) {
-            List<String> fullPath = new ArrayList<>(path);  // found a valid path, add it to the result
+            List<String> fullPath = new ArrayList<>(path);
             fullPath.remove(0);  // remove the target method from the path
             Collections.reverse(fullPath);  // reverse the path to show start to target
             allPaths.add(fullPath);
@@ -96,7 +89,7 @@ public class MethodCallPathDetector extends AnAction {
             Collection<PsiReference> references = ReferencesSearch.search(callingMethod).findAll();
             for (PsiReference reference : references) {
                 PsiElement element = reference.getElement();
-                if (isInsideNewThread(element)) {
+                if (isInsideThreadOrExecutor(element)) {
                     return allPaths; // if the method is inside a new thread, skip it
                 }
                 PsiMethod caller = PsiTreeUtil.getParentOfType(element, PsiMethod.class);
@@ -111,7 +104,8 @@ public class MethodCallPathDetector extends AnAction {
     public void setStart(PsiMethod start) {
         this.start = start;
     }
-    private boolean isInsideNewThread(PsiElement element) {
+
+    private boolean isInsideThreadOrExecutor(PsiElement element) {
         PsiElement parent = element;
         while (parent != null) {
             if (parent instanceof PsiNewExpression newExpr) {
@@ -119,10 +113,29 @@ public class MethodCallPathDetector extends AnAction {
                 if (ref != null && "java.lang.Thread".equals(ref.getQualifiedName())) {
                     return true;
                 }
+                if (isExecutorService(ref.getQualifiedName())) {
+                    return true;
+                }
+            }
+            if (parent instanceof PsiMethodCallExpression methodCall) {
+                String methodName = methodCall.getMethodExpression().getReferenceName();
+                if (isExecutorServiceMethod(methodName)) {
+                    return true;
+                }
             }
             parent = parent.getParent();
         }
         return false;
+    }
+
+    private boolean isExecutorService(String className) {
+        return "java.util.concurrent.ExecutorService".equals(className) ||
+                "java.util.concurrent.Executors".equals(className);
+    }
+
+    private boolean isExecutorServiceMethod(String methodName) {
+        return "execute".equals(methodName) || "submit".equals(methodName) ||
+                "invokeAll".equals(methodName) || "invokeAny".equals(methodName);
     }
 
 }
