@@ -13,9 +13,9 @@ import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.PsiShortNamesCache;
 import com.intellij.psi.search.searches.ReferencesSearch;
 import com.intellij.psi.util.PsiTreeUtil;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class MethodCallPathDetector extends AnAction {
     private PsiMethod start;
@@ -96,6 +96,9 @@ public class MethodCallPathDetector extends AnAction {
             Collection<PsiReference> references = ReferencesSearch.search(callingMethod).findAll();
             for (PsiReference reference : references) {
                 PsiElement element = reference.getElement();
+                if (isInsideNewThread(element)) {
+                    return allPaths; // if the method is inside a new thread, skip it
+                }
                 PsiMethod caller = PsiTreeUtil.getParentOfType(element, PsiMethod.class);
                 if (caller != null && !visited.contains(caller)) {
                     List<List<String>> pathsFromCaller = findCallPaths(caller, new ArrayList<>(path), new HashSet<>(visited));
@@ -108,4 +111,18 @@ public class MethodCallPathDetector extends AnAction {
     public void setStart(PsiMethod start) {
         this.start = start;
     }
+    private boolean isInsideNewThread(PsiElement element) {
+        PsiElement parent = element;
+        while (parent != null) {
+            if (parent instanceof PsiNewExpression newExpr) {
+                PsiJavaCodeReferenceElement ref = newExpr.getClassReference();
+                if (ref != null && "java.lang.Thread".equals(ref.getQualifiedName())) {
+                    return true;
+                }
+            }
+            parent = parent.getParent();
+        }
+        return false;
+    }
+
 }
