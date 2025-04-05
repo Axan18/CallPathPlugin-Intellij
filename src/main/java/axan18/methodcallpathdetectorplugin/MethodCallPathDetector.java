@@ -23,7 +23,7 @@ public class MethodCallPathDetector extends AnAction {
     @Override
     public void actionPerformed(AnActionEvent event) {
         PsiElement element = event.getData(CommonDataKeys.PSI_ELEMENT);
-        if(!(element instanceof PsiMethod method)) // ensure the selected element is a method
+        if (!(element instanceof PsiMethod method)) // ensure the selected element is a method
             return;
         if (method.getBody() == null) {
             Messages.showMessageDialog("Method is empty", "Error", Messages.getErrorIcon());
@@ -50,12 +50,11 @@ public class MethodCallPathDetector extends AnAction {
                 new EmptyProgressIndicator()
         );
         if (targets.isEmpty()) {
-            Messages.showMessageDialog("Method " + searchedMethodName +" not found", "Error", Messages.getErrorIcon());
+            Messages.showMessageDialog("Method " + searchedMethodName + " not found", "Error", Messages.getErrorIcon());
             return;
         }
 
         Set<PsiMethod> visited = new HashSet<>();
-        List<String> path;
         for (PsiMethod target : targets) {
             if (target.getBody() == null) {
                 Messages.showMessageDialog(
@@ -63,49 +62,48 @@ public class MethodCallPathDetector extends AnAction {
                         "Error", Messages.getErrorIcon());
                 return;
             }
-            path = ProgressManager.getInstance().runProcess(
-                    () -> ReadAction.compute(() ->
-                            findCallPath(target, new ArrayList<>(), visited)),
+            List<List<String>> allPaths = ProgressManager.getInstance().runProcess(
+                    () -> ReadAction.compute(() -> findCallPaths(target, new ArrayList<>(), visited)),
                     new EmptyProgressIndicator());
-            Messages.showMessageDialog("Call path: " +
-                            String.join(" -> ", path),
-                    "Call Path Found", Messages.getInformationIcon()
-            );
+
+            // Displaying all paths
+            if (allPaths.isEmpty()) {
+                Messages.showMessageDialog("No call path found for method " + searchedMethodName, "Info", Messages.getInformationIcon());
+            } else {
+                for (List<String> path : allPaths) {
+                    Messages.showMessageDialog("Call path: " + String.join(" -> ", path),
+                            "Call Path Found", Messages.getInformationIcon());
+                }
+            }
+            visited.clear();
         }
+    }
+    List<List<String>> findCallPaths(PsiMethod callingMethod, List<String> path, Set<PsiMethod> visited) {
+        List<List<String>> allPaths = new ArrayList<>();
+        if (callingMethod == null || visited.contains(callingMethod)) {
+            return allPaths;  // return empty if method is null or already visited
         }
-    /**
-     * Recursively finds the call path from the start method to the target method. Going backwards from the target method,
-     * up through the call hierarchy to the start method.
-     *
-     * @param callingMethod  the target method to find the call path to
-     * @param path    the current path of methods
-     * @param visited the set of visited methods to avoid cycles
-     */
-    List<String> findCallPath(PsiMethod callingMethod, List<String> path, Set<PsiMethod> visited) {
-        if (callingMethod == null || visited.contains(callingMethod))
-            return path;
         visited.add(callingMethod);
         path.add(callingMethod.getName());
 
         if (callingMethod.equals(start)) {
-            path.remove(0); // removing target method from the path
-            Collections.reverse(path); // reversing the path to show the call path from start to target
-            return path;
-        }
-
-        // looking for references to the callers of the calling method
-        Collection<PsiReference> references = ReferencesSearch.search(callingMethod).findAll();
-        for (PsiReference reference : references) {
-            PsiElement element = reference.getElement();
-            PsiMethod caller = PsiTreeUtil.getParentOfType(element, PsiMethod.class);
-            if (caller != null){
-                List<String> result = findCallPath(caller, new ArrayList<>(path), visited);
-                if (result != null) {
-                    return result;
+            List<String> fullPath = new ArrayList<>(path);  // found a valid path, add it to the result
+            fullPath.remove(0);  // remove the target method from the path
+            Collections.reverse(fullPath);  // reverse the path to show start to target
+            allPaths.add(fullPath);
+        } else {
+            // looking for references to the callers of the calling method
+            Collection<PsiReference> references = ReferencesSearch.search(callingMethod).findAll();
+            for (PsiReference reference : references) {
+                PsiElement element = reference.getElement();
+                PsiMethod caller = PsiTreeUtil.getParentOfType(element, PsiMethod.class);
+                if (caller != null && !visited.contains(caller)) {
+                    List<List<String>> pathsFromCaller = findCallPaths(caller, new ArrayList<>(path), new HashSet<>(visited));
+                    allPaths.addAll(pathsFromCaller);  // add the paths from this caller
                 }
             }
         }
-        return null;
+        return allPaths;
     }
     public void setStart(PsiMethod start) {
         this.start = start;
