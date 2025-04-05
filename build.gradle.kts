@@ -38,3 +38,10 @@ tasks {
         token.set(System.getenv("PUBLISH_TOKEN"))
     }
 }
+dependencies {
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+    testImplementation("org.junit.jupiter:junit-jupiter-engine:5.10.2")
+}
+tasks.test{
+    useJUnitPlatform()
+}
