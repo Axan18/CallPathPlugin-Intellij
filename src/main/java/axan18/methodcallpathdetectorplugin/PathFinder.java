@@ -64,7 +64,7 @@ public class PathFinder {
     }
 
     /**
-     * Checks if the specified element is inside a thread or executor service.
+     * Checks if the specified element is inside a thread or executor service by going up the PSI tree.
      *
      * @param element the element to check
      * @return true if the element is inside a thread or executor service, false otherwise
@@ -77,7 +77,7 @@ public class PathFinder {
                 if (ref != null && "java.lang.Thread".equals(ref.getQualifiedName())) {
                     return true;
                 }
-                if (isExecutorService(ref.getQualifiedName())) {
+                if (isExecutorService(Objects.requireNonNull(ref).getQualifiedName())) {
                     return true;
                 }
             }

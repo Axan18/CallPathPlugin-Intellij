@@ -135,7 +135,33 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
         assertEquals(2, paths.size());
         assertTrue(paths.stream().anyMatch(path -> path.containsAll(List.of("foo", "bar", "baz"))));
         assertTrue(paths.stream().anyMatch(path -> path.containsAll(List.of("foo", "baz"))));
-
+    }
+    @Test
+    void testMultiplePaths3(){
+        String classCode = """
+        class XYZ{
+            void foo() {
+                if(true) {
+                    bar();
+                } else {
+                    baz();
+                }
+                abc();
+             }
+            void bar() { interestingMethod(); }
+            void baz() { interestingMethod(); }
+            void abc() { interestingMethod(); }
+            void interestingMethod(){ return; }
+        }""";
+        PsiFile file = getFixture().configureByText("XYZ.java", classCode);
+        PsiMethod start = findMethodByName(file.getProject(), "foo");
+        PsiMethod target = findMethodByName(file.getProject(), "interestingMethod");
+        pathFinder.setStart(start);
+        List<List<String>> paths = getPath(target);
+        assertEquals(3, paths.size());
+        assertTrue(paths.stream().anyMatch(path -> path.containsAll(List.of("foo", "bar"))));
+        assertTrue(paths.stream().anyMatch(path -> path.containsAll(List.of("foo", "baz"))));
+        assertTrue(paths.stream().anyMatch(path -> path.containsAll(List.of("foo", "abc"))));
     }
     @Test
     void testMultipleClasses(){
@@ -164,7 +190,34 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
         assertTrue(paths.get(0).containsAll(expectedPath) && expectedPath.containsAll(paths.get(0)));
     }
     @Test
-    void testPolymorphicCalls(){ // not a problem if plugin doesn't check for polymorphic calls
+    void testDoubleTarget(){
+        String classCodeA = """
+        public class A{
+            void foo() {
+                bar();
+            }
+            void bar() {}
+        }""";
+        String classCodeB = """
+        public class B{
+            void foo() {
+                bar();
+            }
+            void bar() {}
+        }""";
+        getFixture().configureByText("A.java", classCodeA);
+        getFixture().configureByText("B.java", classCodeB);
+        Project project = getFixture().getProject();
+        PsiMethod start = findMethodByName(project, "foo");
+        PsiMethod target = findMethodByName(project, "bar");
+        pathFinder.setStart(start);
+        List<List<String>> paths = getPath(target);
+        assertEquals(1, paths.size());
+        List<String> expectedPath = List.of("foo");
+        assertTrue(paths.get(0).containsAll(expectedPath) && expectedPath.containsAll(paths.get(0)));
+    }
+    @Test
+    void testPolymorphicCalls(){ // not a problem if plugin doesn't check for class type
         String classCodeA = """
                 class Animal {
                     public void makeSound() {
@@ -196,10 +249,10 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
                         a.makeSound();
                     }
                 }""";
-        PsiFile fileA = getFixture().configureByText("A.java", classCodeA);
-        PsiFile fileB = getFixture().configureByText("B.java", classCodeB);
-        PsiFile fileC = getFixture().configureByText("C.java", classCodeC);
-        PsiFile fileXYZ = getFixture().configureByText("XYZ.java", XYZ);
+        getFixture().configureByText("A.java", classCodeA);
+        getFixture().configureByText("B.java", classCodeB);
+        getFixture().configureByText("C.java", classCodeC);
+        getFixture().configureByText("XYZ.java", XYZ);
         Project project = getFixture().getProject();
         PsiMethod start = findMethodByName(project, "foo");
         PsiMethod target = findMethodByName(project, "makeSound");
@@ -228,7 +281,7 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
         assertEquals(0, paths.size());
     }
     @Test
-    void testThreadCall2(){ // not a problem as we don't go to other thread
+    void testThreadCall2(){ // not a problem as we don't go outside the thread
         String classCode = """
         class XYZ{
             void foo() {
@@ -249,6 +302,27 @@ public class PluginTest extends LightJavaCodeInsightFixtureTestCase5 {
         assertEquals(1, paths.size());
         List<String> expectedPath = List.of("bar");
         assertTrue(paths.get(0).containsAll(expectedPath) && expectedPath.containsAll(paths.get(0)));
+    }
+    @Test
+    void testThreadCall3(){
+        String classCode = """
+        class XYZ{
+            void foo() {
+                new Thread(() -> {
+                    bar();
+                }).start();
+            }
+            void bar() {
+                interestingMethod();
+            }
+            void interestingMethod(){ return; }
+        }""";
+        PsiFile file = getFixture().configureByText("XYZ.java", classCode);
+        PsiMethod start = findMethodByName(file.getProject(), "foo");
+        PsiMethod target = findMethodByName(file.getProject(), "interestingMethod");
+        pathFinder.setStart(start);
+        List<List<String>> paths = getPath(target);
+        assertEquals(0, paths.size());
     }
 
     @Test

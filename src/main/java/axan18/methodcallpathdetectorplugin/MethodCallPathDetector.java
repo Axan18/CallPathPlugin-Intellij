@@ -8,11 +8,10 @@ import com.intellij.openapi.progress.EmptyProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
-import com.intellij.psi.*;
+import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiMethod;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.PsiShortNamesCache;
-import com.intellij.psi.search.searches.ReferencesSearch;
-import com.intellij.psi.util.PsiTreeUtil;
 
 import java.util.*;
 
@@ -40,17 +39,14 @@ public class MethodCallPathDetector extends AnAction {
             Messages.showMessageDialog("Method " + searchedMethodName + " not found", "Error", Messages.getErrorIcon());
             return;
         }
-
+        List<List<String>> allPaths = new ArrayList<>();
         Set<PsiMethod> visited = new HashSet<>();
         for (PsiMethod target : targets) { // for each existing method with given name...
-            List<List<String>> allPaths = ProgressManager.getInstance().runProcess(
+            allPaths = ProgressManager.getInstance().runProcess(
                     () -> ReadAction.compute(() -> new PathFinder(start).findCallPaths(target, new ArrayList<>(), visited)),
                     new EmptyProgressIndicator());
-
             // Displaying all paths
-            if (allPaths.isEmpty()) {
-                Messages.showMessageDialog("No call path found for method " + searchedMethodName, "Info", Messages.getInformationIcon());
-            } else {
+            if (!allPaths.isEmpty()) {
                 for (List<String> path : allPaths) {
                     Messages.showMessageDialog("Call path: " + String.join(" -> ", path),
                             "Call Path Found", Messages.getInformationIcon());
