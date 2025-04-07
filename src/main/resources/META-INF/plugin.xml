@@ -1,13 +1,8 @@
 <idea-plugin>
     <id>axan18.MethodCallPathDetectorPlugin</id>
     <name>MethodCallPathDetectorPlugin</name>
-    <vendor email="bartosz_janusz731@protonmail.com" url="https://github.com/Axan18">YourCdompany</vendor>
+    <vendor email="bartosz_janusz731@protonmail.com" url="https://github.com/Axan18">Bartosz Janusz</vendor>
 
-    <!-- Zależności -->
-<!--    <depends>com.intellij.modules.platform</depends>-->
-<!--    <depends>com.intellij.modules.java</depends> &lt;!&ndash; Java support required for PSI &ndash;&gt;-->
-
-    <!-- Akcje, które plugin dodaje -->
     <actions>
         <action id="axan18.methodcallpathdetectorplugin.MethodCallPathDetector"
                 class="axan18.methodcallpathdetectorplugin.MethodCallPathDetector"
@@ -16,8 +11,6 @@
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
         </action>
     </actions>
-
-    <!-- Rozszerzenia, jeżeli są -->
     <extensions defaultExtensionNs="com.intellij">
     </extensions>
 </idea-plugin>
