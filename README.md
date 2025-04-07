@@ -34,3 +34,12 @@ In other words, algorithm goes backwards from the method user is looking for to 
 Algorithm do it for every method with the same name as the method user is looking for!
 If method user is looking for is executed in other thread, plugin will not find the path as those methods may
 just work in parallel and not call each other.
+
+### Running:
+1. Clone the repository:
+    ``` 
+    git clone https://github.com/Axan18/CallPathPlugin-Intellij.git 
+   ```
+2. Open cloned project in Intellij Idea
+3. Open Gradle tool window (View -> Tool Windows -> Gradle) and reload project
+4. Run the plugin by right-clicking on any method name and input name of the method that you want to find call path.
